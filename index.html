@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a73e8">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Scontrini">
+  <title>Scontrini</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue: #1a73e8;
+      --blue-dark: #1558b0;
+      --green: #34a853;
+      --red: #ea4335;
+      --bg: #f1f3f4;
+      --surface: #ffffff;
+      --surface2: #f8f9fa;
+      --border: #dadce0;
+      --text: #202124;
+      --text-light: #5f6368;
+      --shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08);
+      --overlay: rgba(0,0,0,0.5);
+    }
+    [data-theme="dark"] {
+      --bg: #111111;
+      --surface: #1e1e1e;
+      --surface2: #2a2a2a;
+      --border: #3c4043;
+      --text: #e8eaed;
+      --text-light: #9aa0a6;
+      --shadow: 0 1px 3px rgba(0,0,0,0.4);
+      --overlay: rgba(0,0,0,0.7);
+    }
+
+    body {
+      font-family: 'Segoe UI', Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    /* HEADER */
+    .header {
+      background: var(--blue);
+      color: white;
+      padding: 14px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header h1 { font-size: 20px; font-weight: 500; }
+    .header-sub { font-size: 12px; opacity: 0.85; margin-top: 1px; }
+    .theme-toggle {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      border-radius: 50%;
+      width: 38px;
+      height: 38px;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .theme-toggle:active { background: rgba(255,255,255,0.35); }
+
+    /* TOTALE */
+    .totale-card {
+      background: var(--surface);
+      margin: 12px 12px 0;
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .totale-label { font-size: 14px; color: var(--text-light); }
+    .totale-value { font-size: 28px; font-weight: 600; color: var(--green); }
+    .totale-count { font-size: 13px; color: var(--text-light); text-align: right; margin-top: 2px; }
+
+    /* AZIONI */
+    .azioni { display: flex; gap: 8px; margin: 12px 12px 0; }
+    .btn {
+      flex: 1; padding: 10px 6px; border: none; border-radius: 8px;
+      font-size: 12px; font-weight: 500; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      gap: 4px; transition: opacity 0.15s;
+    }
+    .btn:active { opacity: 0.7; }
+    .btn-export { background: #e8f0fe; color: var(--blue); }
+    .btn-print  { background: #e6f4ea; color: var(--green); }
+    .btn-delete-all { background: #fce8e6; color: var(--red); }
+    [data-theme="dark"] .btn-export { background: #1a3a6e; color: #8ab4f8; }
+    [data-theme="dark"] .btn-print  { background: #0d3b1e; color: #81c995; }
+    [data-theme="dark"] .btn-delete-all { background: #4e1a1a; color: #f28b82; }
+
+    /* LISTA */
+    .lista { padding: 12px; padding-bottom: 90px; }
+    .lista-vuota { text-align: center; padding: 60px 20px; color: var(--text-light); }
+    .lista-vuota .icon { font-size: 64px; margin-bottom: 12px; }
+    .lista-vuota p { font-size: 16px; }
+
+    .receipt-card {
+      background: var(--surface);
+      border-radius: 12px;
+      margin-bottom: 10px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      align-items: stretch;
+    }
+    .receipt-photo {
+      width: 80px; min-height: 80px; flex-shrink: 0;
+      background: var(--surface2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+    }
+    .receipt-photo img { width: 80px; height: 80px; object-fit: cover; }
+    .receipt-info { flex: 1; padding: 12px 14px; min-width: 0; cursor: pointer; }
+    .receipt-desc {
+      font-size: 15px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .receipt-date { font-size: 12px; color: var(--text-light); margin-top: 3px; }
+    .receipt-category {
+      display: inline-block; font-size: 11px;
+      background: #e8f0fe; color: var(--blue);
+      border-radius: 4px; padding: 1px 6px; margin-top: 5px;
+    }
+    [data-theme="dark"] .receipt-category { background: #1a3a6e; color: #8ab4f8; }
+    .receipt-amount {
+      font-size: 18px; font-weight: 600; color: var(--green);
+      padding: 0 14px; display: flex; align-items: center; flex-shrink: 0;
+      cursor: pointer;
+    }
+    .receipt-actions {
+      display: flex; flex-direction: column;
+      border-left: 1px solid var(--border);
+    }
+    .receipt-action-btn {
+      flex: 1; background: none; border: none; cursor: pointer;
+      padding: 0 12px; font-size: 18px; color: var(--text-light);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .receipt-action-btn:active { background: var(--surface2); }
+
+    /* FAB */
+    .fab {
+      position: fixed; bottom: 24px; right: 20px;
+      width: 60px; height: 60px; border-radius: 50%;
+      background: var(--blue); color: white; border: none;
+      font-size: 28px; cursor: pointer;
+      box-shadow: 0 4px 12px rgba(26,115,232,0.4);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; transition: transform 0.15s;
+    }
+    .fab:active { transform: scale(0.92); }
+
+    /* MODAL */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: var(--overlay); z-index: 300; align-items: flex-end;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface); width: 100%;
+      border-radius: 20px 20px 0 0; padding: 20px;
+      max-height: 92vh; overflow-y: auto;
+      animation: slideUp 0.25s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to   { transform: translateY(0); }
+    }
+    .modal-handle {
+      width: 40px; height: 4px; background: var(--border);
+      border-radius: 2px; margin: 0 auto 16px;
+    }
+    .modal h2 { font-size: 18px; font-weight: 600; margin-bottom: 20px; }
+
+    /* FORM */
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block; font-size: 13px; color: var(--text-light);
+      margin-bottom: 6px; font-weight: 500;
+    }
+    .form-group input,
+    .form-group select {
+      width: 100%; padding: 12px 14px;
+      border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 16px; color: var(--text);
+      background: var(--surface); outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: var(--blue); }
+
+    /* FOTO AREA */
+    .photo-area {
+      border: 2px dashed var(--border); border-radius: 12px;
+      padding: 20px; text-align: center; cursor: pointer;
+      transition: border-color 0.15s, background 0.15s; position: relative;
+    }
+    .photo-area:active { background: var(--surface2); }
+    .photo-area.has-photo { border-style: solid; border-color: var(--blue); padding: 0; overflow: hidden; }
+    .photo-area input { display: none; }
+    .photo-area img { width: 100%; max-height: 220px; object-fit: cover; display: block; }
+    .photo-area-label { font-size: 14px; color: var(--text-light); margin-top: 8px; }
+    .photo-icon { font-size: 40px; }
+    .photo-change-overlay {
+      display: none; position: absolute; bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,0.45); color: white;
+      font-size: 13px; text-align: center; padding: 8px;
+    }
+    .photo-area.has-photo .photo-change-overlay { display: block; }
+
+    /* OCR */
+    .ocr-banner {
+      display: none; margin-top: 8px; padding: 10px 14px;
+      background: #e8f0fe; border-radius: 8px; border-left: 3px solid var(--blue);
+      font-size: 13px; color: var(--blue);
+    }
+    [data-theme="dark"] .ocr-banner { background: #1a3a6e; color: #8ab4f8; }
+    .ocr-banner.show { display: flex; align-items: center; gap: 8px; }
+    .ocr-spinner { animation: spin 0.8s linear infinite; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .amount-wrap { position: relative; }
+    .ocr-badge {
+      display: none; position: absolute; right: 10px; top: 50%;
+      transform: translateY(-50%); font-size: 11px;
+      background: var(--green); color: white;
+      border-radius: 4px; padding: 2px 6px;
+    }
+    .ocr-badge.show { display: block; }
+
+    /* SALVA */
+    .btn-salva {
+      width: 100%; padding: 14px; background: var(--blue);
+      color: white; border: none; border-radius: 10px;
+      font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 8px;
+    }
+    .btn-salva:active { background: var(--blue-dark); }
+    .btn-salva:disabled { background: var(--border); color: var(--text-light); cursor: default; }
+
+    /* DETAIL */
+    .detail-photo {
+      width: 100%; max-height: 280px; object-fit: contain;
+      background: #000; border-radius: 10px; margin-bottom: 16px; display: none;
+    }
+    .detail-row {
+      display: flex; justify-content: space-between;
+      padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 15px;
+    }
+    .detail-row:last-of-type { border-bottom: none; }
+    .detail-row span:first-child { color: var(--text-light); }
+    .detail-row span:last-child { font-weight: 500; }
+    .detail-amount { font-size: 32px; font-weight: 700; color: var(--green); text-align: center; padding: 16px 0; }
+
+    /* PRINT */
+    @media print {
+      .header, .fab, .azioni, .receipt-actions, .modal-overlay { display: none !important; }
+      body { background: white; }
+      .totale-card { box-shadow: none; border: 1px solid #ddd; }
+      .receipt-card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; margin-bottom: 8px; }
+      .lista { padding: 0; }
+    }
+
+    /* TOAST */
+    .toast {
+      position: fixed; bottom: 100px; left: 50%;
+      transform: translateX(-50%); background: #323232; color: white;
+      padding: 10px 20px; border-radius: 24px; font-size: 14px;
+      z-index: 999; opacity: 0; transition: opacity 0.3s; white-space: nowrap;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <h1>🧾 Scontrini</h1>
+    <div class="header-sub">Gestione spese personale</div>
+  </div>
+  <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()" title="Cambia tema">🌙</button>
+</div>
+
+<!-- TOTALE -->
+<div class="totale-card">
+  <div>
+    <div class="totale-label">Totale spese</div>
+    <div class="totale-count" id="countLabel">0 scontrini</div>
+  </div>
+  <div class="totale-value" id="totaleValue">€ 0,00</div>
+</div>
+
+<!-- AZIONI -->
+<div class="azioni">
+  <button class="btn btn-export" onclick="exportCSV()">📊 Esporta</button>
+  <button class="btn btn-print" onclick="window.print()">🖨️ Stampa</button>
+  <button class="btn btn-delete-all" onclick="confirmDeleteAll()">🗑️ Svuota</button>
+</div>
+
+<!-- LISTA -->
+<div class="lista" id="lista"></div>
+
+<!-- FAB -->
+<button class="fab" onclick="openAddModal()">+</button>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- ===== MODAL AGGIUNGI ===== -->
+<div class="modal-overlay" id="modalAdd" onclick="closeOnOverlay(event,'modalAdd')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2>Nuovo scontrino</h2>
+
+    <div class="form-group">
+      <label>Foto scontrino</label>
+      <div class="photo-area" id="photoArea" onclick="document.getElementById('photoInput').click()">
+        <input type="file" id="photoInput" accept="image/*" capture="environment" onchange="onPhotoSelected(event)">
+        <div class="photo-icon">📷</div>
+        <div class="photo-area-label">Tocca per scattare una foto</div>
+        <div class="photo-change-overlay">Tocca per cambiare foto</div>
+      </div>
+      <div class="ocr-banner" id="ocrBanner">
+        <span class="ocr-spinner" id="ocrSpinner">⏳</span>
+        <span id="ocrMsg">Lettura automatica in corso…</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Descrizione *</label>
+      <input type="text" id="inputDesc" placeholder="es. Supermercato, Farmacia…" autocomplete="off">
+    </div>
+
+    <div class="form-group">
+      <label>Importo (€) *</label>
+      <div class="amount-wrap">
+        <input type="number" id="inputAmount" placeholder="0,00" step="0.01" min="0" inputmode="decimal">
+        <span class="ocr-badge" id="ocrBadge">OCR ✓</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Categoria</label>
+      <select id="inputCategory">
+        <option value="Altro">Altro</option>
+        <option value="Alimentari">Alimentari</option>
+        <option value="Farmacia">Farmacia</option>
+        <option value="Carburante">Carburante</option>
+        <option value="Ristorazione">Ristorazione</option>
+        <option value="Abbigliamento">Abbigliamento</option>
+        <option value="Casa">Casa</option>
+        <option value="Trasporti">Trasporti</option>
+        <option value="Salute">Salute</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Data</label>
+      <input type="date" id="inputDate">
+    </div>
+
+    <button class="btn-salva" id="btnSalva" onclick="saveReceipt()">Salva scontrino</button>
+  </div>
+</div>
+
+<!-- ===== MODAL DETTAGLIO ===== -->
+<div class="modal-overlay" id="modalDetail" onclick="closeOnOverlay(event,'modalDetail')">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <img id="detailPhoto" class="detail-photo" alt="Foto scontrino">
+    <div class="detail-amount" id="detailAmount"></div>
+    <div id="detailRows"></div>
+    <button class="btn-salva" style="background:#ea4335;margin-top:16px" onclick="deleteCurrentReceipt()">🗑️ Elimina</button>
+  </div>
+</div>
+
+<script>
+// ===== DB =====
+let db;
+let currentDetailId = null;
+const DB_NAME = 'scontriniDB';
+const STORE = 'receipts';
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE, { keyPath: 'id' });
+    };
+    req.onsuccess = e => { db = e.target.result; resolve(); };
+    req.onerror = () => reject(req.error);
+  });
+}
+function dbGetAll() {
+  return new Promise((res, rej) => {
+    const req = db.transaction(STORE,'readonly').objectStore(STORE).getAll();
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+function dbPut(item) {
+  return new Promise((res, rej) => {
+    const req = db.transaction(STORE,'readwrite').objectStore(STORE).put(item);
+    req.onsuccess = () => res();
+    req.onerror = () => rej(req.error);
+  });
+}
+function dbDelete(id) {
+  return new Promise((res, rej) => {
+    const req = db.transaction(STORE,'readwrite').objectStore(STORE).delete(id);
+    req.onsuccess = () => res();
+    req.onerror = () => rej(req.error);
+  });
+}
+function dbClear() {
+  return new Promise((res, rej) => {
+    const req = db.transaction(STORE,'readwrite').objectStore(STORE).clear();
+    req.onsuccess = () => res();
+    req.onerror = () => rej(req.error);
+  });
+}
+
+// ===== RENDER =====
+async function renderAll() {
+  const receipts = await dbGetAll();
+  receipts.sort((a, b) => b.id - a.id);
+  const lista = document.getElementById('lista');
+  const total = receipts.reduce((s, r) => s + r.amount, 0);
+  document.getElementById('totaleValue').textContent = '€ ' + fmt(total);
+  document.getElementById('countLabel').textContent = receipts.length + (receipts.length === 1 ? ' scontrino' : ' scontrini');
+
+  if (receipts.length === 0) {
+    lista.innerHTML = `<div class="lista-vuota"><div class="icon">🧾</div><p>Nessuno scontrino ancora.<br>Tocca <strong>+</strong> per aggiungerne uno.</p></div>`;
+    return;
+  }
+  lista.innerHTML = '';
+  for (const r of receipts) {
+    const card = document.createElement('div');
+    card.className = 'receipt-card';
+    const photoHTML = r.photoBlob
+      ? `<div class="receipt-photo"><img src="${URL.createObjectURL(r.photoBlob)}" loading="lazy"></div>`
+      : `<div class="receipt-photo">🧾</div>`;
+    const dateStr = r.date ? new Date(r.date+'T00:00:00').toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+    card.innerHTML = `
+      ${photoHTML}
+      <div class="receipt-info" onclick="openDetail(${r.id})">
+        <div class="receipt-desc">${esc(r.description)}</div>
+        <div class="receipt-date">${dateStr}</div>
+        <span class="receipt-category">${esc(r.category)}</span>
+      </div>
+      <div class="receipt-amount" onclick="openDetail(${r.id})">€ ${fmt(r.amount)}</div>
+      <div class="receipt-actions">
+        <button class="receipt-action-btn" onclick="quickDelete(${r.id})">🗑️</button>
+      </div>`;
+    lista.appendChild(card);
+  }
+}
+
+// ===== OCR =====
+let selectedPhotoBlob = null;
+let ocrRunning = false;
+
+async function runOCR(file) {
+  const banner = document.getElementById('ocrBanner');
+  const spinner = document.getElementById('ocrSpinner');
+  const msg = document.getElementById('ocrMsg');
+  const badge = document.getElementById('ocrBadge');
+  const btn = document.getElementById('btnSalva');
+
+  banner.classList.add('show');
+  spinner.style.display = 'inline-block';
+  msg.textContent = 'Lettura automatica in corso…';
+  badge.classList.remove('show');
+  btn.disabled = true;
+  ocrRunning = true;
+
+  try {
+    const { data: { text } } = await Tesseract.recognize(file, 'ita', {
+      logger: () => {}
+    });
+    const amount = extractAmount(text);
+    spinner.style.display = 'none';
+    if (amount !== null) {
+      document.getElementById('inputAmount').value = amount.toFixed(2);
+      badge.classList.add('show');
+      msg.textContent = `Rilevato: € ${fmt(amount)} — modifica se non corretto`;
+    } else {
+      msg.textContent = 'Importo non rilevato — inseriscilo manualmente';
+    }
+  } catch (e) {
+    spinner.style.display = 'none';
+    msg.textContent = 'OCR non disponibile — inserisci l\'importo manualmente';
+  } finally {
+    btn.disabled = false;
+    ocrRunning = false;
+  }
+}
+
+function extractAmount(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Cerca "TOTALE" o "TOT" seguito da un importo
+  for (const line of lines) {
+    if (/\b(totale|tot\.?|importo|total)\b/i.test(line)) {
+      const m = line.match(/(\d{1,4})[,.](\d{2})\b/);
+      if (m) return parseFloat(m[1] + '.' + m[2]);
+    }
+  }
+
+  // Fallback: prende l'importo più alto trovato
+  const all = [...text.matchAll(/\b(\d{1,4})[,.](\d{2})\b/g)]
+    .map(m => parseFloat(m[1] + '.' + m[2]))
+    .filter(v => v > 0 && v < 10000);
+
+  if (all.length === 0) return null;
+  return Math.max(...all);
+}
+
+// ===== ADD MODAL =====
+function openAddModal() {
+  selectedPhotoBlob = null;
+  resetPhotoArea();
+  document.getElementById('ocrBanner').classList.remove('show');
+  document.getElementById('ocrBadge').classList.remove('show');
+  document.getElementById('inputDesc').value = '';
+  document.getElementById('inputAmount').value = '';
+  document.getElementById('inputCategory').value = 'Altro';
+  document.getElementById('inputDate').value = today();
+  document.getElementById('btnSalva').disabled = false;
+  document.getElementById('modalAdd').classList.add('open');
+  setTimeout(() => document.getElementById('inputDesc').focus(), 300);
+}
+
+function resetPhotoArea() {
+  const area = document.getElementById('photoArea');
+  area.classList.remove('has-photo');
+  area.innerHTML = `
+    <input type="file" id="photoInput" accept="image/*" capture="environment" onchange="onPhotoSelected(event)">
+    <div class="photo-icon">📷</div>
+    <div class="photo-area-label">Tocca per scattare una foto</div>
+    <div class="photo-change-overlay">Tocca per cambiare foto</div>`;
+}
+
+function onPhotoSelected(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  selectedPhotoBlob = file;
+  const url = URL.createObjectURL(file);
+  const area = document.getElementById('photoArea');
+  area.classList.add('has-photo');
+  area.innerHTML = `
+    <input type="file" id="photoInput" accept="image/*" capture="environment" onchange="onPhotoSelected(event)">
+    <img src="${url}" alt="preview">
+    <div class="photo-change-overlay">Tocca per cambiare foto</div>`;
+  // Avvia OCR
+  runOCR(file);
+}
+
+async function saveReceipt() {
+  if (ocrRunning) return;
+  const desc = document.getElementById('inputDesc').value.trim();
+  const amountRaw = document.getElementById('inputAmount').value.trim().replace(',','.');
+  const amount = parseFloat(amountRaw);
+  if (!desc) { showToast('Inserisci una descrizione'); return; }
+  if (isNaN(amount) || amount < 0) { showToast('Inserisci un importo valido'); return; }
+
+  await dbPut({
+    id: Date.now(),
+    description: desc,
+    amount,
+    category: document.getElementById('inputCategory').value,
+    date: document.getElementById('inputDate').value,
+    photoBlob: selectedPhotoBlob || null
+  });
+  document.getElementById('modalAdd').classList.remove('open');
+  await renderAll();
+  showToast('Scontrino salvato ✓');
+}
+
+// ===== DETAIL =====
+async function openDetail(id) {
+  currentDetailId = id;
+  const r = (await dbGetAll()).find(x => x.id === id);
+  if (!r) return;
+  const photoEl = document.getElementById('detailPhoto');
+  if (r.photoBlob) { photoEl.src = URL.createObjectURL(r.photoBlob); photoEl.style.display = 'block'; }
+  else { photoEl.style.display = 'none'; }
+  document.getElementById('detailAmount').textContent = '€ ' + fmt(r.amount);
+  const dateStr = r.date ? new Date(r.date+'T00:00:00').toLocaleDateString('it-IT',{day:'2-digit',month:'long',year:'numeric'}) : '—';
+  document.getElementById('detailRows').innerHTML = `
+    <div class="detail-row"><span>Descrizione</span><span>${esc(r.description)}</span></div>
+    <div class="detail-row"><span>Categoria</span><span>${esc(r.category)}</span></div>
+    <div class="detail-row"><span>Data</span><span>${dateStr}</span></div>`;
+  document.getElementById('modalDetail').classList.add('open');
+}
+
+async function deleteCurrentReceipt() {
+  if (!currentDetailId || !confirm('Eliminare questo scontrino?')) return;
+  await dbDelete(currentDetailId);
+  document.getElementById('modalDetail').classList.remove('open');
+  await renderAll();
+  showToast('Scontrino eliminato');
+}
+
+async function quickDelete(id) {
+  if (!confirm('Eliminare questo scontrino?')) return;
+  await dbDelete(id);
+  await renderAll();
+}
+
+async function confirmDeleteAll() {
+  const receipts = await dbGetAll();
+  if (receipts.length === 0) { showToast('Nessuno scontrino da eliminare'); return; }
+  if (!confirm(`Eliminare tutti i ${receipts.length} scontrini?`)) return;
+  await dbClear();
+  await renderAll();
+}
+
+// ===== EXPORT CSV =====
+async function exportCSV() {
+  const receipts = await dbGetAll();
+  if (receipts.length === 0) { showToast('Nessuno scontrino da esportare'); return; }
+  receipts.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  const rows = receipts.map(r => [r.date||'', `"${(r.description||'').replace(/"/g,'""')}"`, `"${r.category||''}"`, fmt(r.amount)]);
+  const total = receipts.reduce((s,r) => s+r.amount, 0);
+  rows.push(['','"TOTALE"','', fmt(total)]);
+  const csv = ['Data;Descrizione;Categoria;Importo (€)', ...rows.map(r=>r.join(';'))].join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'scontrini_'+today()+'.csv';
+  a.click();
+  showToast('CSV esportato ✓');
+}
+
+// ===== TEMA =====
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  const newTheme = isDark ? 'light' : 'dark';
+  html.setAttribute('data-theme', newTheme);
+  document.getElementById('themeBtn').textContent = newTheme === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('theme', newTheme);
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('theme') || 'light';
+  document.documentElement.setAttribute('data-theme', saved);
+  document.getElementById('themeBtn').textContent = saved === 'dark' ? '☀️' : '🌙';
+}
+
+// ===== UTILS =====
+function closeOnOverlay(e, id) {
+  if (e.target === document.getElementById(id)) document.getElementById(id).classList.remove('open');
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmt(n) { return n.toFixed(2).replace('.',','); }
+function today() { return new Date().toISOString().split('T')[0]; }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ===== INIT =====
+initTheme();
+openDB().then(() => renderAll());
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
