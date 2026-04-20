@@ -11,7 +11,6 @@
   <title>Scontrini</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -65,30 +64,18 @@
     .header-sub { font-size: 12px; opacity: 0.85; margin-top: 1px; }
     .theme-toggle {
       background: rgba(255,255,255,0.2);
-      border: none;
-      color: white;
-      border-radius: 50%;
-      width: 38px;
-      height: 38px;
-      font-size: 20px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
+      border: none; color: white; border-radius: 50%;
+      width: 38px; height: 38px; font-size: 20px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
     .theme-toggle:active { background: rgba(255,255,255,0.35); }
 
     /* TOTALE */
     .totale-card {
       background: var(--surface);
-      margin: 12px 12px 0;
-      border-radius: 12px;
-      padding: 16px 20px;
-      box-shadow: var(--shadow);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      margin: 12px 12px 0; border-radius: 12px;
+      padding: 16px 20px; box-shadow: var(--shadow);
+      display: flex; justify-content: space-between; align-items: center;
     }
     .totale-label { font-size: 14px; color: var(--text-light); }
     .totale-value { font-size: 28px; font-weight: 600; color: var(--green); }
@@ -117,19 +104,14 @@
     .lista-vuota p { font-size: 16px; }
 
     .receipt-card {
-      background: var(--surface);
-      border-radius: 12px;
-      margin-bottom: 10px;
-      box-shadow: var(--shadow);
-      overflow: hidden;
-      display: flex;
-      align-items: stretch;
+      background: var(--surface); border-radius: 12px;
+      margin-bottom: 10px; box-shadow: var(--shadow);
+      overflow: hidden; display: flex; align-items: stretch;
     }
     .receipt-photo {
       width: 80px; min-height: 80px; flex-shrink: 0;
       background: var(--surface2);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 32px;
+      display: flex; align-items: center; justify-content: center; font-size: 32px;
     }
     .receipt-photo img { width: 80px; height: 80px; object-fit: cover; }
     .receipt-info { flex: 1; padding: 12px 14px; min-width: 0; cursor: pointer; }
@@ -146,12 +128,10 @@
     [data-theme="dark"] .receipt-category { background: #1a3a6e; color: #8ab4f8; }
     .receipt-amount {
       font-size: 18px; font-weight: 600; color: var(--green);
-      padding: 0 14px; display: flex; align-items: center; flex-shrink: 0;
-      cursor: pointer;
+      padding: 0 14px; display: flex; align-items: center; flex-shrink: 0; cursor: pointer;
     }
     .receipt-actions {
-      display: flex; flex-direction: column;
-      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column; border-left: 1px solid var(--border);
     }
     .receipt-action-btn {
       flex: 1; background: none; border: none; cursor: pointer;
@@ -229,26 +209,6 @@
     }
     .photo-area.has-photo .photo-change-overlay { display: block; }
 
-    /* OCR */
-    .ocr-banner {
-      display: none; margin-top: 8px; padding: 10px 14px;
-      background: #e8f0fe; border-radius: 8px; border-left: 3px solid var(--blue);
-      font-size: 13px; color: var(--blue);
-    }
-    [data-theme="dark"] .ocr-banner { background: #1a3a6e; color: #8ab4f8; }
-    .ocr-banner.show { display: flex; align-items: center; gap: 8px; }
-    .ocr-spinner { animation: spin 0.8s linear infinite; display: inline-block; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .amount-wrap { position: relative; }
-    .ocr-badge {
-      display: none; position: absolute; right: 10px; top: 50%;
-      transform: translateY(-50%); font-size: 11px;
-      background: var(--green); color: white;
-      border-radius: 4px; padding: 2px 6px;
-    }
-    .ocr-badge.show { display: block; }
-
     /* SALVA */
     .btn-salva {
       width: 100%; padding: 14px; background: var(--blue);
@@ -256,7 +216,6 @@
       font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 8px;
     }
     .btn-salva:active { background: var(--blue-dark); }
-    .btn-salva:disabled { background: var(--border); color: var(--text-light); cursor: default; }
 
     /* DETAIL */
     .detail-photo {
@@ -341,10 +300,6 @@
         <div class="photo-area-label">Tocca per scattare una foto</div>
         <div class="photo-change-overlay">Tocca per cambiare foto</div>
       </div>
-      <div class="ocr-banner" id="ocrBanner">
-        <span class="ocr-spinner" id="ocrSpinner">⏳</span>
-        <span id="ocrMsg">Lettura automatica in corso…</span>
-      </div>
     </div>
 
     <div class="form-group">
@@ -354,10 +309,7 @@
 
     <div class="form-group">
       <label>Importo (€) *</label>
-      <div class="amount-wrap">
-        <input type="number" id="inputAmount" placeholder="0,00" step="0.01" min="0" inputmode="decimal">
-        <span class="ocr-badge" id="ocrBadge">OCR ✓</span>
-      </div>
+      <input type="number" id="inputAmount" placeholder="0,00" step="0.01" min="0" inputmode="decimal">
     </div>
 
     <div class="form-group">
@@ -380,7 +332,7 @@
       <input type="date" id="inputDate">
     </div>
 
-    <button class="btn-salva" id="btnSalva" onclick="saveReceipt()">Salva scontrino</button>
+    <button class="btn-salva" onclick="saveReceipt()">Salva scontrino</button>
   </div>
 </div>
 
@@ -478,85 +430,16 @@ async function renderAll() {
   }
 }
 
-// ===== OCR =====
-let selectedPhotoBlob = null;
-let ocrRunning = false;
-
-async function runOCR(file) {
-  const banner = document.getElementById('ocrBanner');
-  const spinner = document.getElementById('ocrSpinner');
-  const msg = document.getElementById('ocrMsg');
-  const badge = document.getElementById('ocrBadge');
-  const btn = document.getElementById('btnSalva');
-
-  banner.classList.add('show');
-  spinner.style.display = 'inline-block';
-  msg.textContent = 'Lettura automatica in corso…';
-  badge.classList.remove('show');
-  btn.disabled = true;
-  ocrRunning = true;
-
-  let worker;
-  try {
-    if (typeof Tesseract === 'undefined') throw new Error('Tesseract non disponibile');
-    worker = await Tesseract.createWorker('eng');
-    const { data: { text } } = await worker.recognize(file);
-    await worker.terminate();
-
-    const amount = extractAmount(text);
-    spinner.style.display = 'none';
-    if (amount !== null) {
-      document.getElementById('inputAmount').value = amount.toFixed(2);
-      badge.classList.add('show');
-      msg.textContent = `Rilevato: € ${fmt(amount)} — modifica se non corretto`;
-    } else {
-      msg.textContent = 'Importo non rilevato — inseriscilo manualmente';
-    }
-  } catch (e) {
-    if (worker) try { await worker.terminate(); } catch(_) {}
-    spinner.style.display = 'none';
-    msg.textContent = 'OCR non disponibile — inserisci l\'importo manualmente';
-  } finally {
-    btn.disabled = false;
-    ocrRunning = false;
-  }
-}
-
-function extractAmount(text) {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-
-  // Normalizza: rimuove spazi tra cifre (es. "12 50" → "12,50")
-  const normalized = text.replace(/(\d)\s(\d{2})(?!\d)/g, '$1,$2');
-
-  // Cerca righe con parole chiave totale
-  for (const line of lines) {
-    if (/\b(totale|tot\.?|importo|total|da pagare|pagare)\b/i.test(line)) {
-      const m = line.match(/(\d{1,5})[.,](\d{2})/);
-      if (m) return parseFloat(m[1] + '.' + m[2]);
-    }
-  }
-
-  // Cerca in testo normalizzato
-  const all = [...normalized.matchAll(/(\d{1,5})[.,](\d{2})/g)]
-    .map(m => parseFloat(m[1] + '.' + m[2]))
-    .filter(v => v >= 0.01 && v < 10000);
-
-  if (all.length === 0) return null;
-  // Prende il valore più frequente nella zona bassa della lista (spesso il totale)
-  return all[all.length - 1];
-}
-
 // ===== ADD MODAL =====
+let selectedPhotoBlob = null;
+
 function openAddModal() {
   selectedPhotoBlob = null;
   resetPhotoArea();
-  document.getElementById('ocrBanner').classList.remove('show');
-  document.getElementById('ocrBadge').classList.remove('show');
   document.getElementById('inputDesc').value = '';
   document.getElementById('inputAmount').value = '';
   document.getElementById('inputCategory').value = 'Altro';
   document.getElementById('inputDate').value = today();
-  document.getElementById('btnSalva').disabled = false;
   document.getElementById('modalAdd').classList.add('open');
   setTimeout(() => document.getElementById('inputDesc').focus(), 300);
 }
@@ -582,12 +465,9 @@ function onPhotoSelected(e) {
     <input type="file" id="photoInput" accept="image/*" capture="environment" onchange="onPhotoSelected(event)">
     <img src="${url}" alt="preview">
     <div class="photo-change-overlay">Tocca per cambiare foto</div>`;
-  // Avvia OCR
-  runOCR(file);
 }
 
 async function saveReceipt() {
-  if (ocrRunning) return;
   const desc = document.getElementById('inputDesc').value.trim();
   const amountRaw = document.getElementById('inputAmount').value.trim().replace(',','.');
   const amount = parseFloat(amountRaw);
@@ -666,8 +546,7 @@ async function exportCSV() {
 // ===== TEMA =====
 function toggleTheme() {
   const html = document.documentElement;
-  const isDark = html.getAttribute('data-theme') === 'dark';
-  const newTheme = isDark ? 'light' : 'dark';
+  const newTheme = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   html.setAttribute('data-theme', newTheme);
   document.getElementById('themeBtn').textContent = newTheme === 'dark' ? '☀️' : '🌙';
   localStorage.setItem('theme', newTheme);
