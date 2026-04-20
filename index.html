@@ -11,7 +11,7 @@
   <title>Scontrini</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -496,10 +496,13 @@ async function runOCR(file) {
   btn.disabled = true;
   ocrRunning = true;
 
+  let worker;
   try {
-    const { data: { text } } = await Tesseract.recognize(file, 'ita', {
-      logger: () => {}
-    });
+    if (typeof Tesseract === 'undefined') throw new Error('Tesseract non disponibile');
+    worker = await Tesseract.createWorker('eng');
+    const { data: { text } } = await worker.recognize(file);
+    await worker.terminate();
+
     const amount = extractAmount(text);
     spinner.style.display = 'none';
     if (amount !== null) {
@@ -510,6 +513,7 @@ async function runOCR(file) {
       msg.textContent = 'Importo non rilevato — inseriscilo manualmente';
     }
   } catch (e) {
+    if (worker) try { await worker.terminate(); } catch(_) {}
     spinner.style.display = 'none';
     msg.textContent = 'OCR non disponibile — inserisci l\'importo manualmente';
   } finally {
