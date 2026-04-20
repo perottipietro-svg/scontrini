@@ -525,21 +525,25 @@ async function runOCR(file) {
 function extractAmount(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-  // Cerca "TOTALE" o "TOT" seguito da un importo
+  // Normalizza: rimuove spazi tra cifre (es. "12 50" → "12,50")
+  const normalized = text.replace(/(\d)\s(\d{2})(?!\d)/g, '$1,$2');
+
+  // Cerca righe con parole chiave totale
   for (const line of lines) {
-    if (/\b(totale|tot\.?|importo|total)\b/i.test(line)) {
-      const m = line.match(/(\d{1,4})[,.](\d{2})\b/);
+    if (/\b(totale|tot\.?|importo|total|da pagare|pagare)\b/i.test(line)) {
+      const m = line.match(/(\d{1,5})[.,](\d{2})/);
       if (m) return parseFloat(m[1] + '.' + m[2]);
     }
   }
 
-  // Fallback: prende l'importo più alto trovato
-  const all = [...text.matchAll(/\b(\d{1,4})[,.](\d{2})\b/g)]
+  // Cerca in testo normalizzato
+  const all = [...normalized.matchAll(/(\d{1,5})[.,](\d{2})/g)]
     .map(m => parseFloat(m[1] + '.' + m[2]))
-    .filter(v => v > 0 && v < 10000);
+    .filter(v => v >= 0.01 && v < 10000);
 
   if (all.length === 0) return null;
-  return Math.max(...all);
+  // Prende il valore più frequente nella zona bassa della lista (spesso il totale)
+  return all[all.length - 1];
 }
 
 // ===== ADD MODAL =====
