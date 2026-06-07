@@ -758,7 +758,8 @@ async function importBackup(e) {
     let blob = null;
     if (r.photoData) {
       const res = await fetch(r.photoData);
-      blob = await res.blob();
+      const raw = await res.blob();
+      blob = await compressPhotoForStorage(raw); // comprimi anche le foto vecchie
     }
     await dbPut({ ...r, photoBlob: blob, photoData: undefined });
     imported++;
