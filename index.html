@@ -468,14 +468,40 @@ function resetPhotoArea() {
 function onPhotoSelected(e) {
   const file = e.target.files[0];
   if (!file) return;
-  selectedPhotoBlob = file;
-  const url = URL.createObjectURL(file);
-  const area = document.getElementById('photoArea');
-  area.classList.add('has-photo');
-  area.innerHTML = `
-    <input type="file" id="photoInput" accept="image/*" capture="environment" onchange="onPhotoSelected(event)">
-    <img src="${url}" alt="preview">
-    <div class="photo-change-overlay">Tocca per cambiare foto</div>`;
+  // Comprimi subito prima di mostrare l'anteprima
+  compressPhotoForStorage(file).then(compressed => {
+    selectedPhotoBlob = compressed;
+    const url = URL.createObjectURL(compressed);
+    const area = document.getElementById('photoArea');
+    area.classList.add('has-photo');
+    area.innerHTML = `
+      <input type="file" id="photoInput" accept="image/*" capture="environment" onchange="onPhotoSelected(event)">
+      <img src="${url}" alt="preview">
+      <div class="photo-change-overlay">Tocca per cambiare foto</div>`;
+  });
+}
+
+// Comprimi foto prima del salvataggio (max 1400px, JPEG 0.78)
+function compressPhotoForStorage(blob) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      const MAX = 1400;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (w > MAX || h > MAX) {
+        const r = Math.min(MAX / w, MAX / h);
+        w = Math.round(w * r); h = Math.round(h * r);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(b => resolve(b || blob), 'image/jpeg', 0.78);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(blob); };
+    img.src = url;
+  });
 }
 
 async function saveReceipt() {
@@ -538,19 +564,29 @@ async function confirmDeleteAll() {
 }
 
 // ===== EXPORT PDF =====
-async function compressImage(blob, maxW, maxH, quality) {
+function blobToDataUrl(blob) {
+  return new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = () => res(reader.result);
+    reader.onerror = () => rej(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Ritorna { dataUrl, w, h } ridimensionato per il PDF (max pixW x pixH)
+function resizeForPdf(blob, pixW, pixH) {
   return new Promise(resolve => {
     const img = new Image();
     const url = URL.createObjectURL(blob);
     img.onload = () => {
       let w = img.naturalWidth, h = img.naturalHeight;
-      const ratio = Math.min(maxW / w, maxH / h, 1);
+      const ratio = Math.min(pixW / w, pixH / h, 1);
       w = Math.round(w * ratio); h = Math.round(h * ratio);
       const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       canvas.getContext('2d').drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
-      resolve({ dataUrl: canvas.toDataURL('image/jpeg', quality), w, h });
+      resolve({ dataUrl: canvas.toDataURL('image/jpeg', 0.82), w, h });
     };
     img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
     img.src = url;
@@ -565,87 +601,111 @@ async function exportPDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const PW = 210, PH = 297;
-  const ML = 14, MR = 14, MT = 14;
+  const ML = 12, MR = 12;
   const CW = PW - ML - MR;
-  let y = MT;
+  let y = 0;
 
-  const fmtDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
-  const pageBreakIfNeeded = (needed) => {
-    if (y + needed > PH - 14) { doc.addPage(); y = MT; }
+  const fmtDate = (d) => d
+    ? new Date(d + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : '—';
+
+  const addHeader = () => {
+    doc.setFillColor(26, 115, 232);
+    doc.rect(0, 0, PW, 20, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(15); doc.setFont('helvetica', 'bold');
+    doc.text('🧾 Scontrini', ML, 13);
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+    const now = new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    doc.text('Generato il ' + now, PW - MR, 13, { align: 'right' });
+    y = 26;
   };
 
-  // Intestazione
-  doc.setFillColor(26, 115, 232);
-  doc.rect(0, 0, PW, 22, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16); doc.setFont('helvetica', 'bold');
-  doc.text('Scontrini — Riepilogo spese', ML, 14);
-  doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-  const now = new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  doc.text('Generato il ' + now, PW - MR, 14, { align: 'right' });
-  y = 30;
-
-  // Totale
+  // Pagina 1 — riepilogo
+  addHeader();
   const total = receipts.reduce((s, r) => s + r.amount, 0);
-  doc.setTextColor(52, 168, 83); doc.setFontSize(13); doc.setFont('helvetica', 'bold');
-  doc.text('Totale: € ' + total.toFixed(2).replace('.', ','), PW - MR, y, { align: 'right' });
-  doc.setTextColor(95, 99, 104); doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-  doc.text(receipts.length + (receipts.length === 1 ? ' scontrino' : ' scontrini'), ML, y);
-  y += 8;
-
-  doc.setDrawColor(218, 220, 224);
-  doc.line(ML, y, PW - MR, y);
-  y += 7;
-
   receipts.sort((a, b) => b.id - a.id);
 
+  doc.setFillColor(232, 240, 254);
+  doc.roundedRect(ML, y, CW, 14, 2, 2, 'F');
+  doc.setTextColor(26, 115, 232); doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+  doc.text(receipts.length + (receipts.length === 1 ? ' scontrino' : ' scontrini'), ML + 4, y + 9);
+  doc.setTextColor(52, 168, 83); doc.setFontSize(13); doc.setFont('helvetica', 'bold');
+  doc.text('€ ' + total.toFixed(2).replace('.', ','), PW - MR - 4, y + 9, { align: 'right' });
+  y += 20;
+
+  // Tabella riepilogo
+  const colW = [70, 30, 28, 28, 26];
+  const headers = ['Descrizione', 'Categoria', 'Data', 'Importo', 'Foto'];
+  doc.setFillColor(220, 228, 244);
+  doc.rect(ML, y, CW, 8, 'F');
+  doc.setTextColor(26, 40, 80); doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+  let cx = ML + 2;
+  headers.forEach((h, i) => { doc.text(h, cx, y + 5.5); cx += colW[i]; });
+  y += 8;
+
   for (const r of receipts) {
-    const IMG_W = 32, IMG_H = 32;
-    const ROW_H = r.photoBlob ? IMG_H + 2 : 20;
-    pageBreakIfNeeded(ROW_H + 6);
-
-    let imgData = null;
-    if (r.photoBlob) {
-      imgData = await compressImage(r.photoBlob, 240, 240, 0.65);
+    if (y > PH - 16) {
+      doc.addPage(); addHeader();
     }
-
-    // Card background
-    doc.setFillColor(248, 249, 250);
-    doc.roundedRect(ML, y - 2, CW, ROW_H + 4, 2, 2, 'F');
-
-    const textX = imgData ? ML + IMG_W + 4 : ML + 3;
-    const textW = imgData ? CW - IMG_W - 10 : CW - 40;
-
-    if (imgData) {
-      const aspect = imgData.w / imgData.h;
-      const dh = IMG_H, dw = Math.min(IMG_W, dh * aspect);
-      doc.addImage(imgData.dataUrl, 'JPEG', ML + 1, y, dw, dh);
-    }
-
-    // Descrizione
-    doc.setTextColor(32, 33, 36); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-    doc.text(r.description || '', textX, y + 6, { maxWidth: textW });
-
-    // Categoria + data
-    doc.setTextColor(95, 99, 104); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-    doc.text(r.category + '   ' + fmtDate(r.date), textX, y + 12, { maxWidth: textW });
-
-    // Importo
-    doc.setTextColor(52, 168, 83); doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-    doc.text('€ ' + r.amount.toFixed(2).replace('.', ','), PW - MR - 2, y + 7, { align: 'right' });
-
-    y += ROW_H + 8;
+    const rowBg = receipts.indexOf(r) % 2 === 0 ? [255,255,255] : [248,249,250];
+    doc.setFillColor(...rowBg);
+    doc.rect(ML, y, CW, 9, 'F');
+    doc.setTextColor(32, 33, 36); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+    cx = ML + 2;
+    doc.text(r.description || '', cx, y + 6, { maxWidth: colW[0] - 3 }); cx += colW[0];
+    doc.setTextColor(95, 99, 104);
+    doc.text(r.category || '', cx, y + 6, { maxWidth: colW[1] - 2 }); cx += colW[1];
+    doc.text(fmtDate(r.date), cx, y + 6); cx += colW[2];
+    doc.setTextColor(52, 168, 83); doc.setFont('helvetica', 'bold');
+    doc.text('€ ' + r.amount.toFixed(2).replace('.', ','), cx, y + 6); cx += colW[3];
+    doc.setTextColor(r.photoBlob ? 26 : 150, r.photoBlob ? 115 : 150, r.photoBlob ? 232 : 150);
+    doc.text(r.photoBlob ? '✓ p.' + (receipts.indexOf(r) + 2) : '—', cx, y + 6);
     doc.setDrawColor(218, 220, 224);
-    doc.line(ML, y - 4, PW - MR, y - 4);
+    doc.line(ML, y + 9, ML + CW, y + 9);
+    y += 9;
   }
 
-  // Footer totale
-  pageBreakIfNeeded(14);
+  // Riga totale
+  if (y > PH - 20) { doc.addPage(); addHeader(); }
   doc.setFillColor(26, 115, 232);
-  doc.rect(ML, y, CW, 10, 'F');
-  doc.setTextColor(255, 255, 255); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-  doc.text('TOTALE', ML + 3, y + 7);
-  doc.text('€ ' + total.toFixed(2).replace('.', ','), PW - MR - 2, y + 7, { align: 'right' });
+  doc.rect(ML, y + 2, CW, 9, 'F');
+  doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(9);
+  doc.text('TOTALE', ML + 2, y + 7.5);
+  doc.text('€ ' + total.toFixed(2).replace('.', ','), ML + colW[0] + colW[1] + colW[2] + 2, y + 7.5);
+
+  // Pagine dettaglio — una per ogni scontrino con foto
+  for (const r of receipts) {
+    if (!r.photoBlob) continue;
+    doc.addPage();
+    addHeader();
+
+    // Titolo carta
+    doc.setFillColor(248, 249, 250);
+    doc.roundedRect(ML, y, CW, 12, 2, 2, 'F');
+    doc.setTextColor(32, 33, 36); doc.setFontSize(12); doc.setFont('helvetica', 'bold');
+    doc.text(r.description || '', ML + 4, y + 8, { maxWidth: CW - 60 });
+    doc.setTextColor(52, 168, 83); doc.setFontSize(13);
+    doc.text('€ ' + r.amount.toFixed(2).replace('.', ','), PW - MR - 3, y + 8, { align: 'right' });
+    y += 15;
+
+    doc.setTextColor(95, 99, 104); doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+    doc.text(r.category + '   •   ' + fmtDate(r.date), ML, y);
+    y += 7;
+
+    // Foto grande — max larghezza intera, altezza max 210mm
+    const maxPhotoH = PH - y - 16;
+    const imgData = await resizeForPdf(r.photoBlob, 1400, Math.round(maxPhotoH / 210 * 1400 * 2));
+    if (imgData) {
+      const aspect = imgData.w / imgData.h;
+      let dw = CW, dh = dw / aspect;
+      if (dh > maxPhotoH) { dh = maxPhotoH; dw = dh * aspect; }
+      const imgX = ML + (CW - dw) / 2;
+      doc.setDrawColor(200, 200, 200);
+      doc.roundedRect(imgX - 1, y - 1, dw + 2, dh + 2, 2, 2);
+      doc.addImage(imgData.dataUrl, 'JPEG', imgX, y, dw, dh);
+    }
+  }
 
   doc.save('scontrini_' + today() + '.pdf');
   showToast('PDF scaricato ✓');
