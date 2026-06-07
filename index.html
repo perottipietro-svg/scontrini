@@ -10,6 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="Scontrini">
   <title>Scontrini</title>
   <link rel="manifest" href="manifest.json">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -275,7 +276,7 @@
 <!-- AZIONI -->
 <div class="azioni">
   <button class="btn btn-export" onclick="exportCSV()">📊 Esporta</button>
-  <button class="btn btn-print" onclick="window.print()">🖨️ Stampa</button>
+  <button class="btn btn-print" onclick="exportPDF()">📄 PDF</button>
   <button class="btn btn-share" onclick="shareApp()">🔗 Condividi</button>
   <button class="btn btn-delete-all" onclick="confirmDeleteAll()">🗑️ Svuota</button>
 </div>
@@ -527,6 +528,120 @@ async function confirmDeleteAll() {
   if (!confirm(`Eliminare tutti i ${receipts.length} scontrini?`)) return;
   await dbClear();
   await renderAll();
+}
+
+// ===== EXPORT PDF =====
+async function compressImage(blob, maxW, maxH, quality) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      let w = img.naturalWidth, h = img.naturalHeight;
+      const ratio = Math.min(maxW / w, maxH / h, 1);
+      w = Math.round(w * ratio); h = Math.round(h * ratio);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve({ dataUrl: canvas.toDataURL('image/jpeg', quality), w, h });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+async function exportPDF() {
+  const receipts = await dbGetAll();
+  if (receipts.length === 0) { showToast('Nessuno scontrino da esportare'); return; }
+  showToast('Generazione PDF…');
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const PW = 210, PH = 297;
+  const ML = 14, MR = 14, MT = 14;
+  const CW = PW - ML - MR;
+  let y = MT;
+
+  const fmtDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+  const pageBreakIfNeeded = (needed) => {
+    if (y + needed > PH - 14) { doc.addPage(); y = MT; }
+  };
+
+  // Intestazione
+  doc.setFillColor(26, 115, 232);
+  doc.rect(0, 0, PW, 22, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16); doc.setFont('helvetica', 'bold');
+  doc.text('Scontrini — Riepilogo spese', ML, 14);
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+  const now = new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  doc.text('Generato il ' + now, PW - MR, 14, { align: 'right' });
+  y = 30;
+
+  // Totale
+  const total = receipts.reduce((s, r) => s + r.amount, 0);
+  doc.setTextColor(52, 168, 83); doc.setFontSize(13); doc.setFont('helvetica', 'bold');
+  doc.text('Totale: € ' + total.toFixed(2).replace('.', ','), PW - MR, y, { align: 'right' });
+  doc.setTextColor(95, 99, 104); doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+  doc.text(receipts.length + (receipts.length === 1 ? ' scontrino' : ' scontrini'), ML, y);
+  y += 8;
+
+  doc.setDrawColor(218, 220, 224);
+  doc.line(ML, y, PW - MR, y);
+  y += 7;
+
+  receipts.sort((a, b) => b.id - a.id);
+
+  for (const r of receipts) {
+    const IMG_W = 32, IMG_H = 32;
+    const ROW_H = r.photoBlob ? IMG_H + 2 : 20;
+    pageBreakIfNeeded(ROW_H + 6);
+
+    let imgData = null;
+    if (r.photoBlob) {
+      imgData = await compressImage(r.photoBlob, 240, 240, 0.65);
+    }
+
+    // Card background
+    doc.setFillColor(248, 249, 250);
+    doc.roundedRect(ML, y - 2, CW, ROW_H + 4, 2, 2, 'F');
+
+    const textX = imgData ? ML + IMG_W + 4 : ML + 3;
+    const textW = imgData ? CW - IMG_W - 10 : CW - 40;
+
+    if (imgData) {
+      const aspect = imgData.w / imgData.h;
+      const dh = IMG_H, dw = Math.min(IMG_W, dh * aspect);
+      doc.addImage(imgData.dataUrl, 'JPEG', ML + 1, y, dw, dh);
+    }
+
+    // Descrizione
+    doc.setTextColor(32, 33, 36); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+    doc.text(r.description || '', textX, y + 6, { maxWidth: textW });
+
+    // Categoria + data
+    doc.setTextColor(95, 99, 104); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+    doc.text(r.category + '   ' + fmtDate(r.date), textX, y + 12, { maxWidth: textW });
+
+    // Importo
+    doc.setTextColor(52, 168, 83); doc.setFontSize(12); doc.setFont('helvetica', 'bold');
+    doc.text('€ ' + r.amount.toFixed(2).replace('.', ','), PW - MR - 2, y + 7, { align: 'right' });
+
+    y += ROW_H + 8;
+    doc.setDrawColor(218, 220, 224);
+    doc.line(ML, y - 4, PW - MR, y - 4);
+  }
+
+  // Footer totale
+  pageBreakIfNeeded(14);
+  doc.setFillColor(26, 115, 232);
+  doc.rect(ML, y, CW, 10, 'F');
+  doc.setTextColor(255, 255, 255); doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+  doc.text('TOTALE', ML + 3, y + 7);
+  doc.text('€ ' + total.toFixed(2).replace('.', ','), PW - MR - 2, y + 7, { align: 'right' });
+
+  doc.save('scontrini_' + today() + '.pdf');
+  showToast('PDF scaricato ✓');
 }
 
 // ===== EXPORT CSV =====
